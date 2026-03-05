@@ -59,10 +59,111 @@ def DOG_pyramid(image):
 #create gaussian blur
 def gaussian_blur(image,sigma,kernel):
     ax=np.linspace(-(kernel//2),(kernel//2),kernel)
-    gauss= np.exp**((ax**2)/(2*np.pi*sigma**2))
+    gauss = np.exp(-(ax**2)/(2*sigma**2))
     gauss_outer=np.outer(gauss,gauss)
     return conv2d(image,gauss_outer)
 
+def maxima_minima(image):
+    dog = DOG_pyramid(image)
+    keypoints = []
+
+    for o, octave in enumerate(dog):
+
+        for s in range(1, len(octave)-1):
+
+            prev_img = octave[s-1]
+            curr_img = octave[s]
+            next_img = octave[s+1]
+
+            h, w = curr_img.shape
+
+            for x in range(1, h-1):
+                for y in range(1, w-1):
+
+                    val = curr_img[x, y]
+
+                    neighbors = []
+
+                    neighbors.extend(prev_img[x-1:x+2, y-1:y+2].flatten())
+                    neighbors.extend(curr_img[x-1:x+2, y-1:y+2].flatten())
+                    neighbors.extend(next_img[x-1:x+2, y-1:y+2].flatten())
+
+                    neighbors.remove(val)
+
+                    if val > max(neighbors) or val < min(neighbors):
+                        keypoints.append((o, s, x, y))
+
+    return keypoints
+
+
+
+
+def keypoint_localization(image, contrast_threshold=0.03, r=10):
+
+    dog = DOG_pyramid(image)
+    candidates = maxima_minima(image)
+    refined_keypoints = []
+
+    edge_threshold = ((r+1)**2)/r
+
+    for o,s,x,y in candidates:
+
+        dog_img = dog[o][s]
+        val = dog_img[x,y]
+
+        # contrast filtering
+        if abs(val) < contrast_threshold:
+            continue
+
+        # second derivatives
+        Dxx = dog_img[x+1,y] + dog_img[x-1,y] - 2*dog_img[x,y]
+        Dyy = dog_img[x,y+1] + dog_img[x,y-1] - 2*dog_img[x,y]
+
+        Dxy = (dog_img[x+1,y+1] - dog_img[x+1,y-1] -
+               dog_img[x-1,y+1] + dog_img[x-1,y-1]) / 4
+
+        trace = Dxx + Dyy
+        det = Dxx*Dyy - (Dxy**2)
+
+        if det <= 0:
+            continue
+
+        R = (trace**2)/det
+
+        if R < edge_threshold:
+            refined_keypoints.append((o,s,x,y))
+
+    return refined_keypoints
+
+
+
+def assign_orientation(image):
+
+    gaussian = build_gaussian_scale(image,4,3)
+    keypoints = keypoint_localization(image)
+
+    final_keypoints = []
+
+    for o,s,x,y in keypoints:
+
+        img = gaussian[o][s]
+
+        gx = img[x,y+1] - img[x,y-1]
+        gy = img[x+1,y] - img[x-1,y]
+
+        magnitude = np.sqrt(gx**2 + gy**2)
+        orientation = np.arctan2(gy,gx)
+
+        final_keypoints.append((o,s,x,y,orientation,magnitude))
+
+    return final_keypoints
+
+
+# run full detector
+sift_keypoints = assign_orientation(img)
+
+print("Total keypoints:", len(sift_keypoints))
+print(sift_keypoints[:10])
 
 
 
