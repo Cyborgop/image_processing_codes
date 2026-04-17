@@ -163,8 +163,22 @@ def assign_orientation(image):
 sift_keypoints = assign_orientation(img)
 
 print("Total keypoints:", len(sift_keypoints))
-print(sift_keypoints[:10])
 
+print(sift_keypoints[:10])
+# convert image back to uint8 for drawing
+img_vis = (img * 255).astype(np.uint8)
+
+# convert to color so we can draw colored circles
+img_vis = cv2.cvtColor(img_vis, cv2.COLOR_GRAY2BGR)
+
+# draw keypoints
+for o, s, x, y, orientation, magnitude in sift_keypoints:
+    cv2.circle(img_vis, (y, x), 2, (0,255,0), 1)
+
+# show result
+cv2.imshow("SIFT Keypoints", img_vis)
+cv2.waitKey(0)
+cv2.destroyAllWindows()
 
 
 
